@@ -42,15 +42,17 @@ python3 generate_graphql_queries.py -e ENDPOINT -m METHOD [options]
 
 ### Required Arguments
 
-Flag | Description
-`-e`, `--endpoint` | Target GraphQL endpoint URL (e.g., `http://localhost:4000/graphql`)
-`-m`, `--method` | HTTP request method to use (`GET` or `POST`)
+| Flag | Description |
+| ---- | ----------- |
+| `-e`, `--endpoint` | Target GraphQL endpoint URL (e.g., `http://localhost:4000/graphql`) |
+| `-m`, `--method` | HTTP request method to use (`GET` or `POST`) |
 
 ### Optional Arguments
 
-Flag | Description
-`-i`, `--introspection-query` | Path to a custom introspection query `.gql` file (if omitted, uses a built-in query)
-`-o`, `--output` | Path to output file to save the generated queries
+| Flag | Description |
+| ---- | ----------- |
+| `-i`, `--introspection-query` | Path to a custom introspection query `.gql` file (if omitted, uses a built-in query) |
+| `-o`, `--output` | Path to output file to save the generated queries |
 
 ## Example Usage
 
