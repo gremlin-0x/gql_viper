@@ -37,7 +37,7 @@ pip install requests
 
 ## Usage
 ```bash
-python3 generate_graphql_queries.py -e ENDPOINT -m METHOD [options]
+python3 viper.py -e ENDPOINT -m METHOD [options]
 ```
 
 ### Required Arguments
