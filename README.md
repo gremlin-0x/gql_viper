@@ -1,86 +1,132 @@
-# GraphQL Query Generator
+# Viper — Automatic GraphQL Query Generator (via ZAP Proxy)
 
-An **automated GraphQL query builder** that:
+**`viper.py`** is a standalone Python script that:
 
-- Fetches the GraphQL schema via introspection.
-- Parses available **queries** and **mutations**.
-- Auto-generates working GraphQL queries/mutations:
-  - Expands arguments properly (including input objects).
-  - Expands nested return fields properly.
-- Outputs them either as:
-  - URL-encoded queries for **GET** requests.
-  - JSON request bodies for **POST** requests.
+* Runs a GraphQL introspection query through your ZAP proxy
+* Discovers the schema and automatically builds representative `query` and `mutation` operations
+* Prints them to STDOUT and optionally writes them to a file
 
 ---
 
 ## Features
 
-- Performs GraphQL introspection automatically.
-- Builds real, working queries with nested fields and input objects.
-- Supports both **GET** (URL encoding) and **POST** modes.
-- Optionally saves output to a file.
-- Default fallback introspection query built-in (can supply custom).
-- Clean CLI interface.
+* **ZAP-driven**
+  All HTTP traffic is routed through your ZAP proxy using its host/port/API-key settings (via a shared `zap.py` wrapper).
+
+* **Introspection fallback**
+  You can supply a custom `.gql` introspection query; otherwise the script uses the built-in default.
+
+* **GET or POST**
+  Supports both GET-encoded and POST-JSON methods for the introspection call.
+
+* **Output options**
+  • Always saves the raw introspection JSON to `introspection_result.json`
+  • Prints all generated operations to the console
+  • Optionally writes them to a text file via `-o`
 
 ---
 
 ## Requirements
 
-- Python 3.6+
-- `requests` module
+* Python 3.6+
+* The `requests` library
+* A working `zap.py` in the same directory that provides `get_proxies()`
 
-Install `requests` if needed:
+Install dependencies with:
 
 ```bash
 pip install requests
 ```
 
+---
+
+## Setup & Structure
+
+```text
+project-root/
+├── zap.py                      # ZAP API & proxy helper
+├── viper.py                    # This GraphQL introspection generator
+├── introspection_result.json   # Generated each run
+└── optionally: output file     # If -o is used
+```
+
+Ensure `zap.py` is located alongside `viper.py` so it can load your ZAP config.
+
+---
+
 ## Usage
+
+Make the script executable:
+
 ```bash
-python3 viper.py -e ENDPOINT -m METHOD [options]
+chmod +x viper.py
 ```
 
-### Required Arguments
+Run it:
 
-| Flag | Description |
-| ---- | ----------- |
-| `-e`, `--endpoint` | Target GraphQL endpoint URL (e.g., `http://localhost:4000/graphql`) |
-| `-m`, `--method` | HTTP request method to use (`GET` or `POST`) |
-
-### Optional Arguments
-
-| Flag | Description |
-| ---- | ----------- |
-| `-i`, `--introspection-query` | Path to a custom introspection query `.gql` file (if omitted, uses a built-in query) |
-| `-o`, `--output` | Path to output file to save the generated queries |
-
-## Example Usage
-
-### 1. Basic `POST` Mode (default introspection query)
 ```bash
-python3 viper.py -e http://example.com/graphql -m POST
+./viper.py \
+  -i path/to/custom_introspection.gql \
+  -e http://localhost:4000/graphql \
+  -m POST \
+  -o generated_queries.txt
 ```
 
-### 2. Basic `GET` Mode + Save output
+### Arguments
+
+* `-i, --introspection-query`
+  Path to a `.gql` file containing your introspection query.
+  If omitted, the built-in default is used.
+
+* `-e, --endpoint` **(required)**
+  Full URL of the GraphQL endpoint (e.g. `http://localhost:4000/graphql`).
+
+* `-m, --method` **(required)**
+  HTTP method for the introspection request: `GET` or `POST`.
+
+* `-o, --output`
+  Path to save the generated operations (one per line). If omitted, operations are only printed.
+
+---
+
+## Examples
+
+Basic POST introspection, print only:
+
 ```bash
-python3 viper.py -e http://example.com/graphql -m GET -o output.txt
+./viper.py -e http://api.test/graphql -m POST
 ```
 
-### 3. Using a Custom Introspection Query
+With custom query and save to file:
+
 ```bash
-python3 viper.py -i my_introspection.gql -e http://example.com/graphql -m POST
+./viper.py \
+  -i introspection_custom.gql \
+  -e http://api.test/graphql \
+  -m GET \
+  -o queries.txt
 ```
 
-## Output Format
-- `GET` mode outputs URL-encoded queries like:
-  ```
-  /api?query=query+%7B+getUser%28id%3A+1%29+%7B+id+username+%7D+%7D
-  ```
-- `POST` mode outputs GraphQL request bodies like:
-  ```graphql
-  {"query":"query { getUser(id: 1) { id username } }"}
-  ```
+---
+
+## How It Works
+
+1. **Load or default introspection**: parses provided `.gql` or falls back to `DEFAULT_INTROSPECTION_QUERY`.
+2. **Send through ZAP**: uses `get_proxies()` from `zap.py` to route via your ZAP proxy.
+3. **Save raw schema**: writes full JSON to `introspection_result.json`.
+4. **Build operations**: extracts `query` and `mutation` types, constructs field payloads via `build_operations()`.
+5. **Output**: prints and optionally writes each operation line by line.
+
+---
+
+## Notes
+
+* Ensure your `config.yaml` is set up via `aspiti config` or manually, so `zap.py` can read your ZAP settings.
+* This script is part of a larger ZAP automation toolkit but also functions standalone for quick GraphQL schema exploration.
+
+---
 
 ## License
 
-This project is provided "as-is" for educational and penetration testing use only.
+Provided "as-is" for security testing and educational use. Always obtain authorization before scanning or querying live services.
+
