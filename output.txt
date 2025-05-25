@@ -1,5 +1,4 @@
 {"query": "query {\n  getBlogPost(id: 1) {\n  id\n  image\n  title\n  author\n  date\n  summary\n  paragraphs\n}\n}"}
 {"query": "query {\n  getAllBlogPosts {\n  id\n  image\n  title\n  author\n  date\n  summary\n  paragraphs\n}\n}"}
-{"query": "query {\n  getUser(id: 1) {\n  id\n  username\n  password\n}\n}"}
 {"query": "mutation {\n  login(input: { username: \"example\", password: \"example\" }) {\n  token\n  success\n}\n}"}
 {"query": "mutation {\n  changeEmail(input: { email: \"example\" }) {\n  email\n}\n}"}
