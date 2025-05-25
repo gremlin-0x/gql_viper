@@ -119,9 +119,11 @@ def main():
         q = load_introspection_query(qpath)
         try:
             schema = perform_introspection_request(args.endpoint, args.method, q, proxies)
+            print(f"Trying {fname} against {args.endpoint} with method {args.method}")
             break
         except Exception:
             continue
+        print(f"[!] Failed: {fname}")
 
     if not schema:
         print('Failed to retrieve schema from any introspection file.')
