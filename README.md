@@ -1,6 +1,6 @@
 # Viper — Automatic GraphQL Query Generator (via ZAP Proxy)
 
-**`viper.py`** is a standalone Python script that:
+**`gql_viper`** is a standalone Python script that:
 
 * Runs a GraphQL introspection query through your ZAP proxy
 * Discovers the schema and automatically builds representative `query` and `mutation` operations

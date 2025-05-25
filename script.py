@@ -1,149 +1,104 @@
 #!/usr/bin/env python3
-# viper.py
 
 import argparse
 import json
+import os
 import urllib.parse
-
-from zap import get_proxies
 import requests
 
-# ----- Default Introspection Query -----
+from zap import get_proxies, get_message
+
+# Default introspection
 DEFAULT_INTROSPECTION_QUERY = """
 query IntrospectionQuery {
   __schema {
     queryType { name }
     mutationType { name }
-    types {
-      kind
-      name
-      fields {
-        name
-        args {
-          name
-          type {
-            kind
-            name
-            ofType {
-              kind
-              name
-              ofType {
-                kind
-                name
-              }
-            }
-          }
-        }
-        type {
-          kind
-          name
-          ofType {
-            kind
-            name
-            ofType {
-              kind
-              name
-            }
-          }
-        }
-      }
-      inputFields {
-        name
-        type {
-          kind
-          name
-          ofType {
-            kind
-            name
-          }
-        }
-      }
-    }
+    types { ... }
   }
 }
 """
 
-# ----- Helpers -----
-
-def load_introspection_query(file_path):
-    if not file_path:
+def load_introspection_query(path):
+    if not path:
         return DEFAULT_INTROSPECTION_QUERY
-    with open(file_path, 'r') as f:
+    with open(path) as f:
         return f.read()
 
-def perform_introspection(base_url, method, query):
-    """
-    Uses ZAP proxy configuration via zap.get_proxies()
-    to send the introspection query.
-    """
-    proxies = get_proxies()
-    if method == "POST":
-        headers = {'Content-Type': 'application/json'}
-        data = json.dumps({"query": query})
-        response = requests.post(base_url,
-                                 headers=headers,
-                                 data=data,
-                                 proxies=proxies)
+def perform_introspection_request(base_url, method, query, proxies):
+    if method == 'POST':
+        resp = requests.post(
+            base_url,
+            json={'query': query},
+            proxies=proxies,
+            headers={'Content-Type':'application/json'}
+        )
     else:
-        encoded = urllib.parse.quote(query).replace('%20', '+')
-        url = f"{base_url}?query={encoded}"
-        response = requests.get(url, proxies=proxies)
-
-    if response.status_code != 200:
-        raise RuntimeError(f"Introspection failed ({response.status_code}): {response.text}")
-    return response.json()
-
-# (the rest of find_type, build_arg_value, build_return_fields, build_operations stay unchanged) …
+        resp = requests.get(
+            base_url,
+            params={'query': query},
+            proxies=proxies
+        )
+    resp.raise_for_status()
+    data = resp.json()
+    if 'data' not in data or '__schema' not in data['data']:
+        raise RuntimeError('No __schema in response')
+    return data['data']['__schema']
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Automatic GraphQL Query Generator (using ZAP proxy)"
+        description='viper.py — GraphQL introspection via ZAP proxy'
     )
-    parser.add_argument('-i', '--introspection-query',
-                        help='Path to custom introspection query (.gql)')
-    parser.add_argument('-e', '--endpoint', required=True,
-                        help='GraphQL API endpoint (e.g., http://localhost:4000/graphql)')
-    parser.add_argument('-m', '--method', choices=['GET','POST'], required=True,
-                        help='HTTP method for introspection')
-    parser.add_argument('-o', '--output',
-                        help='File to save generated queries')
-
+    parser.add_argument('-i', '--introspection-query', help='Custom .gql introspection file')
+    parser.add_argument('-e', '--endpoint',            required=True, help='Endpoint path (e.g. /graphql)')
+    parser.add_argument('-m', '--method',   choices=['GET','POST'], required=True, help='HTTP method')
+    parser.add_argument('-o', '--output',               help='Output file for queries')
     args = parser.parse_args()
 
-    gql = load_introspection_query(args.introspection_query)
-    print("[*] Performing introspection through ZAP proxy…")
-    result = perform_introspection(args.endpoint, args.method, gql)
+    # fetch URL and proxies via zap.py
+    schema = None
+    proxies = get_proxies()
+    # Loop every .gql in scripts/gql_viper/introspection
+    introspection_dir = os.path.join(os.path.dirname(__file__), 'scripts', 'gql_viper', 'introspection')
+    for fname in sorted(os.listdir(introspection_dir)):
+        if not fname.endswith('.gql'):
+            continue
+        q = load_introspection_query(os.path.join(introspection_dir, fname))
+        try:
+            schema = perform_introspection_request(args.endpoint, args.method, q, proxies)
+            break
+        except Exception:
+            continue
 
-    with open('introspection_result.json', 'w') as f:
-        json.dump(result, f, indent=2)
-    print("[+] Saved introspection_result.json")
+    if not schema:
+        print('Failed to retrieve schema from any introspection file.')
+        return
 
-    schema = result['data']['__schema']
+    # build operations
+    from scripts.gql_viper.script import find_type, build_operations
     types = schema['types']
     qtype = find_type(types, schema['queryType']['name'])
     mtype = find_type(types, schema.get('mutationType') or {})
+    ops = build_operations(qtype, 'query', types) + build_operations(mtype, 'mutation', types)
 
-    print("[*] Building operations…")
-    ops = build_operations(qtype, "query", types) + build_operations(mtype, "mutation", types)
-
-    output_lines = []
-    if args.method == "GET":
+    # output
+    lines = []
+    if args.method == 'GET':
         for op in ops:
             p = urllib.parse.quote(op).replace('%20','+')
-            line = f"{args.endpoint}?query={p}"
-            print(line)
-            output_lines.append(line)
+            lines.append(f"{args.endpoint}?query={p}")
     else:
         for op in ops:
-            line = json.dumps({"query": op})
-            print(line)
-            output_lines.append(line)
+            lines.append(json.dumps({'query':op}))
 
+    # print & save
+    for l in lines:
+        print(l)
     if args.output:
-        with open(args.output, 'w') as f:
-            f.write("\n".join(output_lines))
+        with open(args.output,'w') as f:
+            f.write('\n'.join(lines))
         print(f"[+] Saved output to {args.output}")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
 
