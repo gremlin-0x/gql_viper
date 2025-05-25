@@ -13,7 +13,7 @@ import urllib.parse
 import requests
 
 from zap import get_proxies, get_message
-from scripts.gql_viper.script import find_type, build_operations  # for building ops
+from scripts.gql_viper.core import find_type, build_operations  # for building ops
 
 # ----- Default Introspection Query -----
 DEFAULT_INTROSPECTION_QUERY = """
